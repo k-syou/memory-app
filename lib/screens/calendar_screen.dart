@@ -25,11 +25,26 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   Future<void> _loadEvents() async {
-    final events = await EventService.loadEvents();
-    setState(() {
-      _events = events;
-      _updateEventsByDate();
-    });
+    try {
+      final events = await EventService.loadEvents();
+      print('CalendarScreen: ${events.length}개 일정 로드됨');
+      if (mounted) {
+        setState(() {
+          _events = events;
+          _updateEventsByDate();
+          print(
+            'CalendarScreen: 일정 날짜별 맵 업데이트 완료 - ${_eventsByDate.length}개 날짜',
+          );
+        });
+      }
+    } catch (e) {
+      print('CalendarScreen: 일정 로드 오류: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('일정을 불러오는 중 오류가 발생했습니다: $e')));
+      }
+    }
   }
 
   void _updateEventsByDate() {
@@ -49,7 +64,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return _eventsByDate[dateKey] ?? [];
   }
 
-  void _showAddEventDialog({DateTime? date, Event? event}) {
+  void _showAddEventDialog({DateTime? date, Event? event}) async {
     final isEdit = event != null;
     final titleController = TextEditingController(text: event?.title ?? '');
     final descriptionController = TextEditingController(
@@ -62,14 +77,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
     TimeOfDay? endTime = event?.endTime != null
         ? TimeOfDay.fromDateTime(event!.endTime!)
         : null;
+    String visibility = event?.visibility ?? 'private';
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => Dialog(
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => Dialog(
           child: Container(
-            width: MediaQuery.of(context).size.width * 0.9,
-            constraints: const BoxConstraints(maxWidth: 500),
+            width: MediaQuery.of(context).size.width * 0.95,
+            constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
             padding: const EdgeInsets.all(24),
             child: SingleChildScrollView(
               child: Column(
@@ -86,72 +106,163 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   const SizedBox(height: 24),
                   TextField(
                     controller: titleController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: '제목',
                       hintText: '일정 제목을 입력하세요',
+                      filled: true,
+                      fillColor: isDark
+                          ? const Color(0xFF666666)
+                          : Colors.grey.shade100,
+                    ),
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black87,
                     ),
                   ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: descriptionController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: '설명',
                       hintText: '일정 설명을 입력하세요',
+                      filled: true,
+                      fillColor: isDark
+                          ? const Color(0xFF666666)
+                          : Colors.grey.shade100,
+                    ),
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black87,
                     ),
                     maxLines: 3,
                   ),
                   const SizedBox(height: 16),
-                  ListTile(
-                    title: const Text('날짜'),
-                    subtitle: Text(
-                      DateFormat('yyyy년 MM월 dd일').format(selectedDate),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF666666)
+                          : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    trailing: const Icon(Icons.calendar_today),
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: selectedDate,
-                        firstDate: DateTime(2000),
-                        lastDate: DateTime(2100),
-                      );
-                      if (picked != null) {
-                        setDialogState(() {
-                          selectedDate = picked;
-                        });
-                      }
-                    },
+                    child: ListTile(
+                      title: const Text('날짜'),
+                      subtitle: Text(
+                        DateFormat('yyyy년 MM월 dd일').format(selectedDate),
+                      ),
+                      trailing: const Icon(Icons.calendar_today),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: dialogContext,
+                          initialDate: selectedDate,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        );
+                        if (picked != null) {
+                          setDialogState(() {
+                            selectedDate = picked;
+                          });
+                        }
+                      },
+                    ),
                   ),
-                  ListTile(
-                    title: const Text('시작 시간 (선택)'),
-                    subtitle: Text(startTime?.format(context) ?? '시간 미설정'),
-                    trailing: const Icon(Icons.access_time),
-                    onTap: () async {
-                      final picked = await showTimePicker(
-                        context: context,
-                        initialTime: startTime ?? TimeOfDay.now(),
-                      );
-                      if (picked != null) {
-                        setDialogState(() {
-                          startTime = picked;
-                        });
-                      }
-                    },
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF666666)
+                          : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ListTile(
+                      title: const Text('시작 시간 (선택)'),
+                      subtitle: Text(startTime?.format(context) ?? '시간 미설정'),
+                      trailing: const Icon(Icons.access_time),
+                      onTap: () async {
+                        final picked = await showTimePicker(
+                          context: dialogContext,
+                          initialTime: startTime ?? TimeOfDay.now(),
+                        );
+                        if (picked != null) {
+                          setDialogState(() {
+                            startTime = picked;
+                          });
+                        }
+                      },
+                    ),
                   ),
-                  ListTile(
-                    title: const Text('종료 시간 (선택)'),
-                    subtitle: Text(endTime?.format(context) ?? '시간 미설정'),
-                    trailing: const Icon(Icons.access_time),
-                    onTap: () async {
-                      final picked = await showTimePicker(
-                        context: context,
-                        initialTime: endTime ?? TimeOfDay.now(),
-                      );
-                      if (picked != null) {
-                        setDialogState(() {
-                          endTime = picked;
-                        });
-                      }
-                    },
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF666666)
+                          : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ListTile(
+                      title: const Text('종료 시간 (선택)'),
+                      subtitle: Text(endTime?.format(context) ?? '시간 미설정'),
+                      trailing: const Icon(Icons.access_time),
+                      onTap: () async {
+                        final picked = await showTimePicker(
+                          context: dialogContext,
+                          initialTime: endTime ?? TimeOfDay.now(),
+                        );
+                        if (picked != null) {
+                          setDialogState(() {
+                            endTime = picked;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // 공유 조건 설정
+                  const Text(
+                    '공유 설정',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('전체 공개'),
+                          subtitle: const Text(
+                            '모든 사용자가 볼 수 있습니다',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          value: 'public',
+                          groupValue: visibility,
+                          onChanged: (value) {
+                            if (value != null) {
+                              setDialogState(() {
+                                visibility = value;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                      Expanded(
+                        child: RadioListTile<String>(
+                          title: const Text('비공개'),
+                          subtitle: const Text(
+                            '나만 볼 수 있습니다',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          value: 'private',
+                          groupValue: visibility,
+                          onChanged: (value) {
+                            if (value != null) {
+                              setDialogState(() {
+                                visibility = value;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 24),
                   // 버튼 영역
@@ -159,16 +270,42 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       TextButton(
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: () => Navigator.pop(dialogContext),
                         child: const Text('취소'),
                       ),
                       if (isEdit) ...[
                         const SizedBox(width: 8),
                         TextButton(
                           onPressed: () async {
-                            await EventService.deleteEvent(event.id);
-                            _loadEvents();
-                            Navigator.pop(context);
+                            try {
+                              await EventService.deleteEvent(event.id);
+                              if (mounted) {
+                                Navigator.pop(dialogContext);
+                                // 다이얼로그가 닫힌 후 부모 위젯에서 처리
+                                await _loadEvents();
+                                if (mounted) {
+                                  scaffoldMessenger.showSnackBar(
+                                    const SnackBar(
+                                      content: Text('일정이 삭제되었습니다'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                }
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                Navigator.pop(dialogContext);
+                                await _loadEvents();
+                                if (mounted) {
+                                  scaffoldMessenger.showSnackBar(
+                                    SnackBar(
+                                      content: Text('삭제 중 오류가 발생했습니다: $e'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            }
                           },
                           child: const Text(
                             '삭제',
@@ -180,7 +317,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       ElevatedButton(
                         onPressed: () async {
                           if (titleController.text.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
                               const SnackBar(content: Text('제목을 입력해주세요')),
                             );
                             return;
@@ -212,16 +349,45 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                     endTime!.minute,
                                   )
                                 : null,
+                            visibility: visibility,
                           );
 
-                          if (isEdit) {
-                            await EventService.updateEvent(newEvent);
-                          } else {
-                            await EventService.addEvent(newEvent);
-                          }
+                          try {
+                            if (isEdit) {
+                              await EventService.updateEvent(newEvent);
+                            } else {
+                              await EventService.addEvent(newEvent);
+                            }
 
-                          _loadEvents();
-                          Navigator.pop(context);
+                            if (mounted) {
+                              Navigator.pop(dialogContext);
+                              // 다이얼로그가 닫힌 후 부모 위젯에서 처리
+                              await _loadEvents();
+                              if (mounted) {
+                                scaffoldMessenger.showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      isEdit ? '일정이 수정되었습니다' : '일정이 추가되었습니다',
+                                    ),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              }
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              Navigator.pop(dialogContext);
+                              await _loadEvents();
+                              if (mounted) {
+                                scaffoldMessenger.showSnackBar(
+                                  SnackBar(
+                                    content: Text('오류가 발생했습니다: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          }
                         },
                         child: Text(isEdit ? '수정' : '추가'),
                       ),
@@ -328,14 +494,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ),
                 if (dayEvents.isNotEmpty)
                   Container(
-                    margin: const EdgeInsets.only(top: 2),
-                    height: 4,
-                    width: 4,
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? Colors.white
-                          : Theme.of(context).colorScheme.primary,
-                      shape: BoxShape.circle,
+                    margin: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Wrap(
+                      spacing: 3,
+                      runSpacing: 3,
+                      alignment: WrapAlignment.center,
+                      children: dayEvents.take(3).map((e) {
+                        return Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Colors.white
+                                : Theme.of(context).colorScheme.primary,
+                            shape: BoxShape.circle,
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ),
               ],
@@ -514,12 +690,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 64),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddEventDialog(date: _selectedDate),
-        child: const Icon(Icons.add),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 20),
+        child: FloatingActionButton(
+          onPressed: () => _showAddEventDialog(date: _selectedDate),
+          child: const Icon(Icons.add),
+        ),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }
