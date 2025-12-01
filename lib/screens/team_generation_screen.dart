@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:memory_team_maker/services/settings_default_service.dart';
+import 'package:memory_app/services/settings_default_service.dart';
 import '../models/team_maker.dart';
 import '../services/storage_service.dart';
 import 'team_generation_settings_screen.dart';

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/storage_service.dart';
+import '../services/auth_service.dart';
 import 'team_generation_screen.dart';
+import 'calendar_screen.dart';
 import 'global_settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -23,15 +25,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadThemeMode() async {
     final isDark = await StorageService.loadDarkMode();
-    setState(() {
-      _isDarkMode = isDark;
-    });
+    if (mounted) {
+      setState(() {
+        _isDarkMode = isDark;
+      });
+    }
   }
 
   void _toggleTheme(bool isDark) {
-    setState(() {
-      _isDarkMode = isDark;
-    });
+    if (mounted) {
+      setState(() {
+        _isDarkMode = isDark;
+      });
+    }
     StorageService.saveDarkMode(isDark);
     widget.onThemeChanged(isDark);
   }
@@ -67,15 +73,15 @@ class _HomeScreenState extends State<HomeScreen> {
         centerTitle: true,
         elevation: 0,
         actions: [
+          // 사용자 프로필 사진 - 클릭 시 설정 화면으로 이동
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
               color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
               shape: BoxShape.circle,
             ),
-            child: IconButton(
-              icon: const Icon(Icons.settings_rounded),
-              onPressed: () {
+            child: GestureDetector(
+              onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -84,6 +90,34 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 );
               },
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                    width: 2,
+                  ),
+                ),
+                child: ClipOval(
+                  child: AuthService.currentUser?.photoURL != null
+                      ? Image.network(
+                          AuthService.currentUser!.photoURL!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(
+                              Icons.account_circle,
+                              color: isDark ? Colors.white : Colors.black87,
+                            );
+                          },
+                        )
+                      : Icon(
+                          Icons.account_circle,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                ),
+              ),
             ),
           ),
         ],
@@ -112,6 +146,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     MaterialPageRoute(
                       builder: (context) =>
                           TeamGenerationScreen(onThemeChanged: _toggleTheme),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
+              // 캘린더 기능 카드
+              _buildMenuCard(
+                context: context,
+                isDark: isDark,
+                title: '캘린더',
+                subtitle: '일정을 등록하고 관리합니다',
+                icon: Icons.calendar_today_rounded,
+                gradient: isDark
+                    ? [const Color(0xFF10B981), const Color(0xFF059669)]
+                    : [const Color(0xFF10B981), const Color(0xFF059669)],
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          CalendarScreen(onThemeChanged: _toggleTheme),
                     ),
                   );
                 },
