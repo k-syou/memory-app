@@ -74,9 +74,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
     TimeOfDay? startTime = event?.startTime != null
         ? TimeOfDay.fromDateTime(event!.startTime!)
         : null;
-    TimeOfDay? endTime = event?.endTime != null
-        ? TimeOfDay.fromDateTime(event!.endTime!)
-        : null;
+    TimeOfDay? endTime =
+        event?.endTime != null ? TimeOfDay.fromDateTime(event!.endTime!) : null;
     String visibility = event?.visibility ?? 'private';
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -324,9 +323,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           }
 
                           final newEvent = Event(
-                            id:
-                                event?.id ??
-                                DateTime.now().millisecondsSinceEpoch
+                            id: event?.id ??
+                                DateTime.now()
+                                    .millisecondsSinceEpoch
                                     .toString(),
                             title: titleController.text,
                             description: descriptionController.text,
@@ -413,7 +412,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
       _currentMonth.month + 1,
       0,
     );
-    final firstWeekday = firstDayOfMonth.weekday;
+    // weekday는 월요일=1, 일요일=7이므로 일요일 기준으로 변환 (일요일=0, 월요일=1, ..., 토요일=6)
+    final firstWeekday = firstDayOfMonth.weekday % 7;
     final daysInMonth = lastDayOfMonth.day;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -438,19 +438,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
 
     // 빈 칸 (첫 주의 시작일 이전)
-    for (var i = 1; i < firstWeekday; i++) {
+    for (var i = 0; i < firstWeekday; i++) {
       dayWidgets.add(const SizedBox());
     }
 
     // 날짜들
     for (var day = 1; day <= daysInMonth; day++) {
       final date = DateTime(_currentMonth.year, _currentMonth.month, day);
-      final isSelected =
-          date.year == _selectedDate.year &&
+      final isSelected = date.year == _selectedDate.year &&
           date.month == _selectedDate.month &&
           date.day == _selectedDate.day;
-      final isToday =
-          date.year == DateTime.now().year &&
+      final isToday = date.year == DateTime.now().year &&
           date.month == DateTime.now().month &&
           date.day == DateTime.now().day;
       final dayEvents = _getEventsForDate(date);
@@ -468,8 +466,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
               color: isSelected
                   ? Theme.of(context).colorScheme.primary
                   : isToday
-                  ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-                  : Colors.transparent,
+                      ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                      : Colors.transparent,
               borderRadius: BorderRadius.circular(8),
               border: isToday && !isSelected
                   ? Border.all(
@@ -487,8 +485,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     color: isSelected
                         ? Colors.white
                         : isDark
-                        ? Colors.white
-                        : Colors.black87,
+                            ? Colors.white
+                            : Colors.black87,
                     fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
                   ),
                 ),
