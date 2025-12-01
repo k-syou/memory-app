@@ -1,0 +1,113 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users 컬렉션: 본인만 읽기/쓰기 가능
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Events 서브컬렉션: 공개/공유 일정 접근 규칙
+      match /events/{eventId} {
+        // 소유자인지 확인
+        function isOwner() {
+          return request.auth != null && request.auth.uid == userId;
+        }
+        
+        // 일정 데이터 가져오기 (읽기 권한 확인용)
+        function getEvent() {
+          return get(/databases/$(database)/documents/users/$(userId)/events/$(eventId));
+        }
+        
+        // 공유 대상인지 확인 (간단한 버전 - 실제 구현 시 클라이언트에서 세부 권한 체크)
+        function isSharedWith() {
+          let event = getEvent();
+          return event.data.visibility == 'shared' && 
+                 event.data.sharedWith != null;
+        }
+        
+        // 쓰기 권한이 있는 공유 대상자인지 확인 (간단한 버전)
+        function hasWritePermission() {
+          let event = getEvent();
+          return event.data.visibility == 'shared' &&
+                 event.data.sharedWith != null;
+        }
+        
+        // 읽기 권한 확인
+        function canRead() {
+          return request.auth != null && (
+            isOwner() ||
+            getEvent().data.visibility == 'public' ||
+            isSharedWith()
+          );
+        }
+        
+        // 공개 일정의 쓰기 권한 확인
+        function hasPublicWritePermission() {
+          let event = getEvent();
+          return event.data.visibility == 'public' && 
+                 event.data.publicPermission == 'write';
+        }
+        
+        // 쓰기 권한 확인
+        function canWrite() {
+          return isOwner() || 
+                 hasPublicWritePermission() ||
+                 hasWritePermission();
+        }
+        
+        // 읽기: 소유자, 공개 일정, 공유 대상자
+        allow read: if canRead();
+        
+        // 생성: 소유자만
+        allow create: if isOwner();
+        
+        // 수정: 소유자 또는 쓰기 권한이 있는 공유 대상자
+        allow update: if canWrite();
+        
+        // 삭제: 소유자만
+        allow delete: if isOwner();
+      }
+    }
+    
+    // Collection Group 쿼리를 위한 규칙 (공개/공유 일정 조회)
+    match /{path=**}/events/{eventId} {
+      function getEvent() {
+        return get(/databases/$(database)/documents/$(path)/events/$(eventId));
+      }
+      
+      function isOwner() {
+        let event = getEvent();
+        return request.auth != null && request.auth.uid == event.data.userId;
+      }
+      
+      function hasPublicWritePermission() {
+        let event = getEvent();
+        return event.data.visibility == 'public' && 
+               event.data.publicPermission == 'write';
+      }
+      
+      function isSharedWith() {
+        let event = getEvent();
+        return event.data.visibility == 'shared' && 
+               event.data.sharedWith != null;
+      }
+      
+      function canRead() {
+        return request.auth != null && (
+          isOwner() ||
+          getEvent().data.visibility == 'public' ||
+          isSharedWith()
+        );
+      }
+      
+      function canWrite() {
+        return isOwner() || 
+               hasPublicWritePermission() ||
+               isSharedWith();
+      }
+      
+      allow read: if canRead();
+      allow update: if canWrite();
+    }
+  }
+}
