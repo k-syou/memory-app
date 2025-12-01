@@ -6,6 +6,8 @@ class Event {
   final DateTime? startTime;
   final DateTime? endTime;
   final String color;
+  final String visibility; // 'public' or 'private'
+  final String? userId; // 일정 소유자 ID
 
   Event({
     required this.id,
@@ -15,6 +17,8 @@ class Event {
     this.startTime,
     this.endTime,
     this.color = '#6366F1',
+    this.visibility = 'private',
+    this.userId,
   });
 
   Map<String, dynamic> toJson() {
@@ -26,6 +30,8 @@ class Event {
       'startTime': startTime?.toIso8601String(),
       'endTime': endTime?.toIso8601String(),
       'color': color,
+      'visibility': visibility,
+      'userId': userId,
     };
   }
 
@@ -42,6 +48,8 @@ class Event {
           ? DateTime.parse(json['endTime'] as String)
           : null,
       color: json['color'] as String? ?? '#6366F1',
+      visibility: json['visibility'] as String? ?? 'private',
+      userId: json['userId'] as String?,
     );
   }
 
@@ -53,6 +61,8 @@ class Event {
     DateTime? startTime,
     DateTime? endTime,
     String? color,
+    String? visibility,
+    String? userId,
   }) {
     return Event(
       id: id ?? this.id,
@@ -62,6 +72,8 @@ class Event {
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
       color: color ?? this.color,
+      visibility: visibility ?? this.visibility,
+      userId: userId ?? this.userId,
     );
   }
 }
