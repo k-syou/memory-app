@@ -8,7 +8,6 @@ on:
     branches:
       - develop
     types: [opened, synchronize, reopened, closed]
-    types: [opened, synchronize, reopened, closed]
 
 jobs:
   # PR 생성/업데이트 시 빌드 테스트만 실행
@@ -69,7 +68,6 @@ jobs:
   deploy-firestore:
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true || (github.event_name == 'push' && github.ref == 'refs/heads/develop')
-    if: github.event.pull_request.merged == true || (github.event_name == 'push' && github.ref == 'refs/heads/develop')
 
     steps:
       - name: Checkout code
@@ -92,7 +90,6 @@ jobs:
   deploy-android:
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true || (github.event_name == 'push' && github.ref == 'refs/heads/develop')
-    if: github.event.pull_request.merged == true || (github.event_name == 'push' && github.ref == 'refs/heads/develop')
 
     steps:
       - name: Checkout code
@@ -107,7 +104,6 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.27.0"
           flutter-version: "3.27.0"
           channel: "stable"
 
@@ -137,7 +133,6 @@ jobs:
   deploy-ios:
     runs-on: macos-latest
     if: github.event.pull_request.merged == true || (github.event_name == 'push' && github.ref == 'refs/heads/develop')
-    if: github.event.pull_request.merged == true || (github.event_name == 'push' && github.ref == 'refs/heads/develop')
 
     steps:
       - name: Checkout code
@@ -147,11 +142,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.27.0"
-          flutter-version: "3.27.0"
           channel: "stable"
-
-      - name: Install Flutter dependencies
-        run: flutter pub get
 
       - name: Install Flutter dependencies
         run: flutter pub get
