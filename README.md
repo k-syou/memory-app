@@ -166,6 +166,86 @@ flutter build apk --split-per-abi
 4. Firebase Authentication에서 Google Sign-In 활성화
 5. Firestore Database 생성 및 보안 규칙 설정
 
+## 로컬 테스트 배포 (Merge 전 테스트)
+
+GitHub Actions workflow를 merge하지 않고 로컬에서 직접 테스트할 수 있습니다.
+
+### 사전 준비
+
+1. **Firebase CLI 설치**
+   ```bash
+   npm install -g firebase-tools
+   ```
+
+2. **Firebase 로그인**
+   ```bash
+   firebase login
+   ```
+
+3. **Firebase App Distribution 테스터 그룹 설정**
+   - Firebase Console → App Distribution → 테스터 및 그룹
+   - "testers" 그룹 생성 또는 기존 그룹 사용
+
+### 사용 방법
+
+#### Linux/macOS
+```bash
+# 모든 항목 배포 (Firestore + Android + iOS)
+./scripts/test-deploy.sh all
+
+# Firestore만 배포
+./scripts/test-deploy.sh firestore
+
+# Android만 배포
+./scripts/test-deploy.sh android
+
+# iOS만 배포 (macOS만)
+./scripts/test-deploy.sh ios
+```
+
+#### Windows
+```cmd
+REM 모든 항목 배포 (Firestore + Android)
+scripts\test-deploy.bat all
+
+REM Firestore만 배포
+scripts\test-deploy.bat firestore
+
+REM Android만 배포
+scripts\test-deploy.bat android
+```
+
+### 수동 배포 (스크립트 없이)
+
+#### Firestore Rules/Indexes 배포
+```bash
+firebase deploy --only firestore:rules,firestore:indexes --project memory-app-server
+```
+
+#### Android APK 빌드 및 배포
+```bash
+# 1. APK 빌드
+flutter build apk --release
+
+# 2. Firebase App Distribution에 배포
+firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
+  --app 1:629900837240:android:2d4dfde780ed14e424c88d \
+  --groups "testers" \
+  --project memory-app-server
+```
+
+#### iOS IPA 빌드 및 배포 (macOS만)
+```bash
+# 1. IPA 빌드
+flutter build ipa --release
+
+# 2. Firebase App Distribution에 배포
+firebase appdistribution:distribute build/ios/ipa/*.ipa \
+  --app 1:629900837240:ios:f7b50a73a0bf441f24c88d \
+  --groups "testers" \
+  --project memory-app-server
+```
+
 ## 라이선스
 
 이 프로젝트는 개인 사용 목적으로 개발되었습니다.
