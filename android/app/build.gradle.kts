@@ -40,14 +40,14 @@ android {
             val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH") 
                 ?: "${System.getProperty("user.home")}/.android/debug.keystore"
             val keystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: "android"
-            val keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: "androiddebugkey"
-            val keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: "android"
+            val keyAliasEnv = System.getenv("ANDROID_KEY_ALIAS") ?: "androiddebugkey"
+            val keyPasswordEnv = System.getenv("ANDROID_KEY_PASSWORD") ?: "android"
             
             if (file(keystorePath).exists()) {
                 storeFile = file(keystorePath)
                 storePassword = keystorePassword
-                this.keyAlias = keyAlias
-                keyPassword = keyPassword
+                this.keyAlias = keyAliasEnv
+                this.keyPassword = keyPasswordEnv
             }
         }
     }
