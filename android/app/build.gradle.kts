@@ -35,6 +35,10 @@ android {
 
     signingConfigs {
         getByName("debug") {
+            // 기본 debug keystore 사용
+        }
+        
+        create("release") {
             // GitHub Actions에서는 ~/.android/debug.keystore 사용
             // 로컬에서는 기본 debug keystore 사용
             val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH") 
@@ -46,16 +50,25 @@ android {
             if (file(keystorePath).exists()) {
                 storeFile = file(keystorePath)
                 storePassword = keystorePassword
-                this.keyAlias = keyAliasEnv
-                this.keyPassword = keyPasswordEnv
+                keyAlias = keyAliasEnv
+                keyPassword = keyPasswordEnv
+            } else {
+                // keystore가 없으면 debug keystore 사용
+                val defaultKeystorePath = "${System.getProperty("user.home")}/.android/debug.keystore"
+                if (file(defaultKeystorePath).exists()) {
+                    storeFile = file(defaultKeystorePath)
+                    storePassword = "android"
+                    keyAlias = "androiddebugkey"
+                    keyPassword = "android"
+                }
             }
         }
     }
 
     buildTypes {
         release {
-            // debug signing config 사용 (명시적으로 지정)
-            signingConfig = signingConfigs.getByName("debug")
+            // release signing config 사용 (명시적으로 지정)
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

@@ -536,7 +536,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         ),
         title: Text(
           DateFormat('yyyy년 MM월').format(_currentMonth),
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
         ),
         actions: [
           IconButton(
