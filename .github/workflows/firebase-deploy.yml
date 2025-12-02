@@ -150,6 +150,15 @@ jobs:
           PROJECT_ID="memory-app-server"
           SHA1="${{ env.SHA1_FINGERPRINT }}"
           
+          # Firebase CLI로 로그인
+          echo "=== Firebase CLI 로그인 ==="
+          export FIREBASE_TOKEN="${{ secrets.FIREBASE_TOKEN }}"
+          firebase use $PROJECT_ID --token $FIREBASE_TOKEN || {
+            echo "⚠️ Firebase CLI 로그인 실패"
+            echo "FIREBASE_TOKEN이 올바른지 확인하세요"
+          }
+          
+          echo ""
           echo "=== SHA-1 지문을 Firebase에 등록 ==="
           # Firebase Management API로 SHA-1 등록
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
