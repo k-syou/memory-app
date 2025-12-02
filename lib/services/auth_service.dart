@@ -8,6 +8,9 @@ class AuthService {
   static final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
     hostedDomain: null,
+    // Web client ID를 명시적으로 지정 (google-services.json의 client_type: 3)
+    serverClientId:
+        '629900837240-rs9bj16ktkran9c27id4j048qb85o527.apps.googleusercontent.com',
   );
 
   // 현재 사용자 가져오기
@@ -19,7 +22,7 @@ class AuthService {
   // Google 로그인
   static Future<UserCredential> signInWithGoogle() async {
     try {
-      // Google 로그인 진행
+      // 이미 선언된 _googleSignIn 인스턴스를 사용
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
       if (googleUser == null) {
@@ -58,24 +61,24 @@ class AuthService {
               .collection('users')
               .doc(userCredential.user!.uid)
               .set({
-                'userId': userCredential.user!.uid,
-                'email': userCredential.user!.email ?? '',
-                'displayName': userCredential.user!.displayName ?? '',
-                'photoUrl': userCredential.user!.photoURL,
-                'createdAt': FieldValue.serverTimestamp(),
-                'updatedAt': FieldValue.serverTimestamp(),
-                'settings': {'darkMode': false, 'language': 'ko'},
-              });
+            'userId': userCredential.user!.uid,
+            'email': userCredential.user!.email ?? '',
+            'displayName': userCredential.user!.displayName ?? '',
+            'photoUrl': userCredential.user!.photoURL,
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+            'settings': {'darkMode': false, 'language': 'ko'},
+          });
         } else {
           // 기존 사용자 정보 업데이트
           await _firestore
               .collection('users')
               .doc(userCredential.user!.uid)
               .update({
-                'updatedAt': FieldValue.serverTimestamp(),
-                'displayName': userCredential.user!.displayName ?? '',
-                'photoUrl': userCredential.user!.photoURL,
-              });
+            'updatedAt': FieldValue.serverTimestamp(),
+            'displayName': userCredential.user!.displayName ?? '',
+            'photoUrl': userCredential.user!.photoURL,
+          });
         }
       }
 
