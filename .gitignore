@@ -13,7 +13,7 @@
 migrate_working_dir/
 .vscode/
 .cursor/
-.scripts/
+
 # IntelliJ related
 *.iml
 *.ipr
@@ -45,3 +45,4 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+scripts/
