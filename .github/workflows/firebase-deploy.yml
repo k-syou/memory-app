@@ -113,7 +113,10 @@ jobs:
       - name: Get SHA-1 fingerprint (for Firebase)
         run: |
           cd android
-          ./gradlew signingReport 2>&1 | grep -A 2 "SHA1:" | head -5 || echo "SHA-1 지문 확인 실패 (정상: debug keystore가 새로 생성됨)"
+          ./gradlew signingReport 2>&1 | tee /tmp/signing_report.txt
+          echo "=== SHA-1 Fingerprints ==="
+          grep -i "SHA1:" /tmp/signing_report.txt || echo "SHA-1 지문을 찾을 수 없습니다"
+          echo "=========================="
 
       - name: Build Android APK
         run: flutter build apk --release
