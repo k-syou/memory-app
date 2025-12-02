@@ -41,8 +41,19 @@ class _LoginScreenState extends State<LoginScreen> {
       await AuthService.signInWithGoogle();
     } catch (e) {
       if (mounted) {
+        // Exception의 메시지만 추출 (Exception: 부분 제거)
+        String errorMessage = e.toString();
+        if (errorMessage.startsWith('Exception: ')) {
+          errorMessage = errorMessage.substring(11);
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('로그인 중 오류가 발생했습니다: ${e.toString()}')),
+          SnackBar(
+            content: Text(errorMessage),
+            duration: const Duration(seconds: 5),
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     } finally {

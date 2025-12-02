@@ -30,6 +30,12 @@ class AuthService {
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
 
+      // idToken이 없으면 에러
+      if (googleAuth.idToken == null) {
+        throw Exception(
+            'Google 인증 토큰을 가져올 수 없습니다. Firebase Console에서 OAuth 클라이언트 ID를 확인해주세요.');
+      }
+
       // Firebase 인증 정보 생성
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
@@ -74,7 +80,42 @@ class AuthService {
       }
 
       return userCredential;
+    } on FirebaseAuthException catch (e) {
+      // Firebase 인증 에러 처리
+      String errorMessage = '로그인 중 오류가 발생했습니다.';
+      switch (e.code) {
+        case 'account-exists-with-different-credential':
+          errorMessage = '이 이메일은 다른 로그인 방법으로 이미 등록되어 있습니다.';
+          break;
+        case 'invalid-credential':
+          errorMessage = '유효하지 않은 인증 정보입니다.';
+          break;
+        case 'operation-not-allowed':
+          errorMessage = '이 로그인 방법이 허용되지 않습니다.';
+          break;
+        case 'user-disabled':
+          errorMessage = '이 계정은 비활성화되었습니다.';
+          break;
+        case 'user-not-found':
+          errorMessage = '사용자를 찾을 수 없습니다.';
+          break;
+        case 'wrong-password':
+          errorMessage = '잘못된 비밀번호입니다.';
+          break;
+        default:
+          errorMessage = '로그인 중 오류가 발생했습니다: ${e.message}';
+      }
+      throw Exception(errorMessage);
     } catch (e) {
+      // PlatformException 처리 (Google Sign-In 에러)
+      final errorString = e.toString();
+      if (errorString.contains('ApiException: 10')) {
+        throw Exception(
+            'Google 로그인 설정 오류입니다.\n\n해결 방법:\n1. Firebase Console에서 OAuth 클라이언트 ID가 설정되어 있는지 확인하세요.\n2. SHA-1 지문이 Firebase Console에 등록되어 있는지 확인하세요.\n3. google-services.json 파일이 최신인지 확인하세요.');
+      } else if (errorString.contains('sign_in_failed')) {
+        throw Exception(
+            'Google 로그인에 실패했습니다.\n\n해결 방법:\n1. Firebase Console → Authentication → Sign-in method에서 Google이 활성화되어 있는지 확인하세요.\n2. SHA-1 지문을 Firebase Console에 추가하세요.\n3. 앱을 다시 빌드하고 실행하세요.');
+      }
       rethrow;
     }
   }
