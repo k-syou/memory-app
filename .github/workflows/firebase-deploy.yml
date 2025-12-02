@@ -112,12 +112,14 @@ jobs:
 
       - name: Get SHA-1 fingerprint and register to Firebase
         run: |
-          cd android
-          chmod +x gradlew || true
-          ./gradlew signingReport 2>&1 | tee /tmp/signing_report.txt
+          # Debug keystore 생성 (없는 경우)
+          mkdir -p ~/.android
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
           
-          # SHA-1 지문 추출 (콜론 제거)
-          SHA1_RAW=$(grep -i "SHA1:" /tmp/signing_report.txt | head -1 | sed 's/.*SHA1: *//' | tr -d '[:space:]')
+          # SHA-1 지문 추출
+          SHA1_RAW=$(keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey 2>&1 | grep -i "SHA1:" | head -1 | sed 's/.*SHA1: *//' | tr -d '[:space:]')
           SHA1=$(echo "$SHA1_RAW" | tr '[:lower:]' '[:upper:]')
           
           if [ -n "$SHA1" ]; then
@@ -129,17 +131,25 @@ jobs:
             APP_ID="1:629900837240:android:2d4dfde780ed14e424c88d"
             PROJECT_ID="memory-app-server"
             
-            curl -X POST \
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
               "https://firebase.googleapis.com/v1beta1/projects/$PROJECT_ID/androidApps/$APP_ID/sha" \
               -H "Authorization: Bearer ${{ secrets.FIREBASE_TOKEN }}" \
               -H "Content-Type: application/json" \
-              -d "{\"shaHash\": \"$SHA1\"}" \
-              2>&1 || echo "⚠️ SHA-1 지문 자동 등록 실패. 수동으로 Firebase Console에 등록해주세요: $SHA1"
+              -d "{\"shaHash\": \"$SHA1\"}" 2>&1)
+            
+            HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+            BODY=$(echo "$RESPONSE" | sed '$d')
+            
+            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
+              echo "✅ SHA-1 지문이 Firebase Console에 자동 등록되었습니다: $SHA1"
+            else
+              echo "⚠️ SHA-1 지문 자동 등록 실패 (HTTP $HTTP_CODE)"
+              echo "응답: $BODY"
+              echo "수동으로 Firebase Console에 등록해주세요: $SHA1"
+            fi
           else
             echo "=== SHA-1 Fingerprint Not Found ==="
             echo "SHA-1 지문을 찾을 수 없습니다."
-            echo "전체 출력 (마지막 30줄):"
-            tail -30 /tmp/signing_report.txt
           fi
 
       - name: Build Android APK
