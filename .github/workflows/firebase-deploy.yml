@@ -110,13 +110,37 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Get SHA-1 fingerprint (for Firebase)
+      - name: Get SHA-1 fingerprint and register to Firebase
         run: |
           cd android
+          chmod +x gradlew || true
           ./gradlew signingReport 2>&1 | tee /tmp/signing_report.txt
-          echo "=== SHA-1 Fingerprints ==="
-          grep -i "SHA1:" /tmp/signing_report.txt || echo "SHA-1 지문을 찾을 수 없습니다"
-          echo "=========================="
+          
+          # SHA-1 지문 추출 (콜론 제거)
+          SHA1_RAW=$(grep -i "SHA1:" /tmp/signing_report.txt | head -1 | sed 's/.*SHA1: *//' | tr -d '[:space:]')
+          SHA1=$(echo "$SHA1_RAW" | tr '[:lower:]' '[:upper:]')
+          
+          if [ -n "$SHA1" ]; then
+            echo "=== Found SHA-1 Fingerprint ==="
+            echo "$SHA1"
+            echo "=============================="
+            
+            # Firebase Management API로 자동 등록
+            APP_ID="1:629900837240:android:2d4dfde780ed14e424c88d"
+            PROJECT_ID="memory-app-server"
+            
+            curl -X POST \
+              "https://firebase.googleapis.com/v1beta1/projects/$PROJECT_ID/androidApps/$APP_ID/sha" \
+              -H "Authorization: Bearer ${{ secrets.FIREBASE_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              -d "{\"shaHash\": \"$SHA1\"}" \
+              2>&1 || echo "⚠️ SHA-1 지문 자동 등록 실패. 수동으로 Firebase Console에 등록해주세요: $SHA1"
+          else
+            echo "=== SHA-1 Fingerprint Not Found ==="
+            echo "SHA-1 지문을 찾을 수 없습니다."
+            echo "전체 출력 (마지막 30줄):"
+            tail -30 /tmp/signing_report.txt
+          fi
 
       - name: Build Android APK
         run: flutter build apk --release
