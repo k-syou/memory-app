@@ -33,10 +33,28 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        getByName("debug") {
+            // GitHub Actions에서는 ~/.android/debug.keystore 사용
+            // 로컬에서는 기본 debug keystore 사용
+            val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH") 
+                ?: "${System.getProperty("user.home")}/.android/debug.keystore"
+            val keystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: "android"
+            val keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: "androiddebugkey"
+            val keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: "android"
+            
+            if (file(keystorePath).exists()) {
+                storeFile = file(keystorePath)
+                storePassword = keystorePassword
+                this.keyAlias = keyAlias
+                keyPassword = keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // debug signing config 사용 (명시적으로 지정)
             signingConfig = signingConfigs.getByName("debug")
         }
     }

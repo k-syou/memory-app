@@ -194,6 +194,11 @@ jobs:
         run: flutter pub get
 
       - name: Build Android APK
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ env.HOME }}/.android/debug.keystore
+          ANDROID_KEYSTORE_PASSWORD: android
+          ANDROID_KEY_ALIAS: androiddebugkey
+          ANDROID_KEY_PASSWORD: android
         run: flutter build apk --release
 
       - name: Verify APK Signature and SHA-1
