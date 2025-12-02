@@ -144,9 +144,24 @@ jobs:
           SHA1=$(echo "$SHA1_RAW" | tr '[:lower:]' '[:upper:]')
           
           if [ -n "$SHA1" ]; then
-            echo "=== Found SHA-1 Fingerprint ==="
+            echo ""
+            echo "=========================================="
+            echo "=== SHA-1 Fingerprint ==="
             echo "$SHA1"
-            echo "=============================="
+            echo "=========================================="
+            echo ""
+            echo "⚠️ 중요: 이 SHA-1이 Firebase Console에 등록되어 있는지 확인하세요!"
+            echo "Firebase Console → 프로젝트 설정 → 일반 → 내 앱 → Android 앱 → SHA 인증서 지문"
+            echo ""
+            echo "현재 google-services.json에 등록된 SHA-1:"
+            echo "- 38DFE83EBBA8896122313D96066662842BA6884F"
+            echo "- 95ED528E9C3426F14E1AA62643B349FC47EA83F1"
+            echo ""
+            if [ -z "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" ]; then
+              echo "⚠️ 경고: DEBUG_KEYSTORE_BASE64가 설정되지 않아 매번 새로운 keystore가 생성됩니다."
+              echo "같은 keystore를 재사용하려면 GitHub Secrets에 DEBUG_KEYSTORE_BASE64를 추가하세요."
+            fi
+            echo ""
             echo "SHA1_FINGERPRINT=$SHA1" >> $GITHUB_ENV
           else
             echo "❌ SHA-1 지문을 찾을 수 없습니다."
@@ -180,6 +195,32 @@ jobs:
 
       - name: Build Android APK
         run: flutter build apk --release
+
+      - name: Verify APK Signature and SHA-1
+        run: |
+          APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+          if [ -f "$APK_PATH" ]; then
+            echo "=== APK 서명 정보 확인 ==="
+            # APK에서 서명 인증서 정보 추출
+            unzip -q -o "$APK_PATH" -d /tmp/apk_extract 2>/dev/null || true
+            if [ -f /tmp/apk_extract/META-INF/*.RSA ] || [ -f /tmp/apk_extract/META-INF/*.DSA ] || [ -f /tmp/apk_extract/META-INF/*.EC ]; then
+              CERT_FILE=$(find /tmp/apk_extract/META-INF -name "*.RSA" -o -name "*.DSA" -o -name "*.EC" | head -1)
+              if [ -n "$CERT_FILE" ]; then
+                echo "서명 인증서 파일: $CERT_FILE"
+                keytool -printcert -file "$CERT_FILE" | grep -i "SHA1:" || echo "SHA-1을 찾을 수 없습니다"
+              fi
+            else
+              echo "⚠️ APK에서 서명 인증서를 찾을 수 없습니다"
+            fi
+            rm -rf /tmp/apk_extract
+            echo ""
+            echo "=== 빌드에 사용된 keystore SHA-1 ==="
+            echo "${{ env.SHA1_FINGERPRINT }}"
+            echo ""
+            echo "이 두 SHA-1이 일치하는지 확인하세요!"
+          else
+            echo "❌ APK 파일을 찾을 수 없습니다: $APK_PATH"
+          fi
 
       - name: Deploy to Firebase App Distribution
         env:

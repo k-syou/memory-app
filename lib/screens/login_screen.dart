@@ -14,24 +14,6 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    // 이미 로그인되어 있으면 홈 화면으로 리다이렉트
-    if (AuthService.currentUser != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) =>
-                  HomeScreen(onThemeChanged: widget.onThemeChanged),
-            ),
-          );
-        }
-      });
-    }
-  }
-
   Future<void> _handleGoogleSignIn() async {
     setState(() {
       _isLoading = true;
@@ -39,6 +21,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       await AuthService.signInWithGoogle();
+      // 로그인 성공 시 main.dart의 StreamBuilder가 자동으로 화면 전환 처리
+      // 명시적인 Navigator 호출은 필요 없음
     } catch (e) {
       if (mounted) {
         // Exception의 메시지만 추출 (Exception: 부분 제거)
