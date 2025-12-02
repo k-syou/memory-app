@@ -37,32 +37,32 @@ jobs:
       - name: Build Android APK (Test)
         run: flutter build apk --release
 
-  test-build-ios:
-    runs-on: macos-latest
-    if: github.event_name == 'pull_request'
+  # test-build-ios:
+  #   runs-on: macos-latest
+  #   if: github.event_name == 'pull_request'
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.27.0"
-          channel: "stable"
+  #     - name: Setup Flutter
+  #       uses: subosito/flutter-action@v2
+  #       with:
+  #         flutter-version: "3.27.0"
+  #         channel: "stable"
 
-      - name: Install Flutter dependencies
-        run: flutter pub get
+  #     - name: Install Flutter dependencies
+  #       run: flutter pub get
 
-      - name: Install CocoaPods dependencies
-        working-directory: ios
-        run: |
-          pod install
+  #     - name: Install CocoaPods dependencies
+  #       working-directory: ios
+  #       run: |
+  #         pod install
 
-      - name: Build iOS IPA (Test)
-        continue-on-error: true
-        run: |
-          flutter build ipa --release --no-codesign || echo "iOS 빌드 실패: 코드 서명이 필요합니다"
+  #     - name: Build iOS IPA (Test)
+  #       continue-on-error: true
+  #       run: |
+  #         flutter build ipa --release --no-codesign || echo "iOS 빌드 실패: 코드 서명이 필요합니다"
 
   # develop 브랜치에 push 시 배포 실행 (PR 머지 포함)
   deploy-firestore:
@@ -110,51 +110,6 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Get SHA-1 fingerprint and register to Firebase
-        run: |
-          # Debug keystore 생성 (없는 경우)
-          mkdir -p ~/.android
-          if [ ! -f ~/.android/debug.keystore ]; then
-            keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          fi
-          
-          # SHA-1 지문 추출
-          SHA1_RAW=$(keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey 2>&1 | grep -i "SHA1:" | head -1 | sed 's/.*SHA1: *//' | tr -d '[:space:]')
-          SHA1=$(echo "$SHA1_RAW" | tr '[:lower:]' '[:upper:]')
-          
-          if [ -n "$SHA1" ]; then
-            echo "=== Found SHA-1 Fingerprint ==="
-            echo "$SHA1"
-            echo "=============================="
-            
-            # Firebase Management API로 자동 등록
-            APP_ID="1:629900837240:android:2d4dfde780ed14e424c88d"
-            PROJECT_ID="memory-app-server"
-            
-            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-              "https://firebase.googleapis.com/v1beta1/projects/$PROJECT_ID/androidApps/$APP_ID/sha" \
-              -H "Authorization: Bearer ${{ secrets.FIREBASE_TOKEN }}" \
-              -H "Content-Type: application/json" \
-              -d "{\"shaHash\": \"$SHA1\"}" 2>&1)
-            
-            HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-            BODY=$(echo "$RESPONSE" | sed '$d')
-            
-            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
-              echo "✅ SHA-1 지문이 Firebase Console에 자동 등록되었습니다: $SHA1"
-            else
-              echo "⚠️ SHA-1 지문 자동 등록 실패 (HTTP $HTTP_CODE)"
-              echo "응답: $BODY"
-              echo "수동으로 Firebase Console에 등록해주세요: $SHA1"
-            fi
-          else
-            echo "=== SHA-1 Fingerprint Not Found ==="
-            echo "SHA-1 지문을 찾을 수 없습니다."
-          fi
-
-      - name: Build Android APK
-        run: flutter build apk --release
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -162,6 +117,84 @@ jobs:
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
+
+      - name: Setup Debug Keystore and Get SHA-1
+        run: |
+          mkdir -p ~/.android
+          
+          # Secrets에 저장된 keystore가 있으면 사용, 없으면 새로 생성
+          if [ -n "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" ]; then
+            echo "=== 기존 debug keystore 복원 ==="
+            echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > ~/.android/debug.keystore
+            echo "✅ 기존 keystore를 사용합니다"
+          else
+            echo "=== 새 debug keystore 생성 ==="
+            keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+            echo "✅ 새 keystore 생성 완료"
+          fi
+          
+          # SHA-1 지문 추출 (콜론 제거)
+          SHA1_RAW=$(keytool -list -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey 2>&1 | grep -i "SHA1:" | head -1 | sed 's/.*SHA1: *//' | tr -d '[:space:]' | tr -d ':')
+          SHA1=$(echo "$SHA1_RAW" | tr '[:lower:]' '[:upper:]')
+          
+          if [ -n "$SHA1" ]; then
+            echo "=== Found SHA-1 Fingerprint ==="
+            echo "$SHA1"
+            echo "=============================="
+            echo "SHA1_FINGERPRINT=$SHA1" >> $GITHUB_ENV
+          else
+            echo "❌ SHA-1 지문을 찾을 수 없습니다."
+            exit 1
+          fi
+
+      - name: Register SHA-1 to Firebase and Download google-services.json
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          # Firebase 로그인
+          echo "$FIREBASE_TOKEN" | firebase login:ci --token-stdin
+          
+          APP_ID="1:629900837240:android:2d4dfde780ed14e424c88d"
+          PROJECT_ID="memory-app-server"
+          SHA1="${{ env.SHA1_FINGERPRINT }}"
+          
+          echo "=== SHA-1 지문을 Firebase에 등록 ==="
+          # Firebase Management API로 SHA-1 등록
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://firebase.googleapis.com/v1beta1/projects/$PROJECT_ID/androidApps/$APP_ID/sha" \
+            -H "Authorization: Bearer $FIREBASE_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"shaHash\": \"$SHA1\"}" 2>&1) || true
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
+            echo "✅ SHA-1 지문이 Firebase에 등록되었습니다"
+          elif echo "$BODY" | grep -q "already exists"; then
+            echo "ℹ️ SHA-1 지문이 이미 등록되어 있습니다"
+          else
+            echo "⚠️ SHA-1 지문 등록 실패 (HTTP $HTTP_CODE)"
+            echo "응답: $BODY"
+            echo "계속 진행합니다..."
+          fi
+          
+          echo ""
+          echo "=== google-services.json 다운로드 ==="
+          # Firebase CLI로 google-services.json 생성
+          firebase apps:sdkconfig android \
+            --app $APP_ID \
+            --project $PROJECT_ID \
+            --out android/app/google-services.json || {
+            echo "⚠️ google-services.json 자동 생성 실패"
+            echo "Firebase Console에서 수동으로 다운로드하세요"
+            exit 1
+          }
+          
+          echo "✅ google-services.json 다운로드 완료"
+
+      - name: Build Android APK
+        run: flutter build apk --release
 
       - name: Deploy to Firebase App Distribution
         env:
@@ -172,82 +205,138 @@ jobs:
             --groups "testers" \
             --project memory-app-server
 
-  deploy-ios:
-    runs-on: macos-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+  # deploy-ios:
+  #   runs-on: macos-latest
+  #   if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.27.0"
-          channel: "stable"
+  #     - name: Setup Flutter
+  #       uses: subosito/flutter-action@v2
+  #       with:
+  #         flutter-version: "3.27.0"
+  #         channel: "stable"
 
-      - name: Install Flutter dependencies
-        run: flutter pub get
+  #     - name: Install Flutter dependencies
+  #       run: flutter pub get
 
-      - name: Install CocoaPods dependencies
-        working-directory: ios
-        run: |
-          pod install
+  #     - name: Install CocoaPods dependencies
+  #       working-directory: ios
+  #       run: |
+  #         pod install
 
-      - name: Setup Apple Developer Certificate
-        if: env.APPLE_CERTIFICATE_BASE64 != ''
-        env:
-          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: |
-          # Create variables
-          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+  #     - name: Setup Apple Developer Certificate
+  #       if: env.APPLE_CERTIFICATE_BASE64 != ''
+  #       env:
+  #         APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+  #         APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+  #         KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+  #       run: |
+  #         # Create variables
+  #         CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+  #         KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
 
-          # Decode certificate
-          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > $CERTIFICATE_PATH
+  #         # Decode certificate
+  #         echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > $CERTIFICATE_PATH
 
-          # Create temporary keychain
-          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+  #         # Create temporary keychain
+  #         security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+  #         security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+  #         security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-          # Import certificate
-          security import $CERTIFICATE_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH
+  #         # Import certificate
+  #         security import $CERTIFICATE_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+  #         security list-keychain -d user -s $KEYCHAIN_PATH
 
-      - name: Setup Provisioning Profile
-        if: env.APPLE_PROVISIONING_PROFILE_BASE64 != ''
-        env:
-          APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
-        run: |
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          echo "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+  #     - name: Setup Provisioning Profile
+  #       if: env.APPLE_PROVISIONING_PROFILE_BASE64 != ''
+  #       env:
+  #         APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+  #       run: |
+  #         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+  #         echo "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
 
-      - name: Build iOS IPA
-        continue-on-error: true
-        run: |
-          flutter build ipa --release || echo "iOS 빌드 실패: 코드 서명이 필요합니다"
+  #     - name: Build iOS IPA
+  #       continue-on-error: true
+  #       run: |
+  #         echo "=== iOS 빌드 시작 ==="
+          
+  #         # 코드 서명 없이 빌드 시도 (개발용)
+  #         if [ -z "${{ secrets.APPLE_CERTIFICATE_BASE64 }}" ]; then
+  #           echo "⚠️ 코드 서명 정보가 없습니다. 코드 서명 없이 빌드를 시도합니다."
+  #           echo "⚠️ 이렇게 빌드한 IPA는 실제 기기에 설치할 수 없습니다."
+  #           flutter build ipa --release --no-codesign 2>&1 | tee /tmp/ios_build.log
+  #         else
+  #           echo "✅ 코드 서명 정보가 있습니다. 서명된 빌드를 진행합니다."
+  #           flutter build ipa --release 2>&1 | tee /tmp/ios_build.log
+  #         fi
+          
+  #         BUILD_EXIT_CODE=${PIPESTATUS[0]}
+          
+  #         if [ $BUILD_EXIT_CODE -eq 0 ]; then
+  #           echo "✅ iOS 빌드 성공"
+  #           ls -la build/ios/ipa/ || echo "IPA 파일 경로 확인 실패"
+  #         else
+  #           echo "❌ iOS 빌드 실패 (종료 코드: $BUILD_EXIT_CODE)"
+  #           echo "=== 빌드 로그 (마지막 50줄) ==="
+  #           tail -50 /tmp/ios_build.log
+  #           echo "=============================="
+  #           echo ""
+  #           echo "💡 해결 방법:"
+  #           echo "1. Apple Developer Program 가입 ($99/년) 필요"
+  #           echo "2. GitHub Secrets에 다음을 추가:"
+  #           echo "   - APPLE_CERTIFICATE_BASE64"
+  #           echo "   - APPLE_CERTIFICATE_PASSWORD"
+  #           echo "   - APPLE_PROVISIONING_PROFILE_BASE64"
+  #           echo "   - KEYCHAIN_PASSWORD"
+  #           echo ""
+  #           echo "📝 자세한 내용: docs/IOS_CODE_SIGNING_SETUP.md"
+  #         fi
+  #         exit $BUILD_EXIT_CODE
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
+  #     - name: Setup Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: "18"
 
-      - name: Install Firebase CLI
-        run: npm install -g firebase-tools
+  #     - name: Install Firebase CLI
+  #       run: npm install -g firebase-tools
 
-      - name: Deploy to Firebase App Distribution
-        if: success()
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: |
-          if [ -f build/ios/ipa/*.ipa ]; then
-            firebase appdistribution:distribute build/ios/ipa/*.ipa \
-              --app 1:629900837240:ios:f7b50a73a0bf441f24c88d \
-              --groups "testers" \
-              --project memory-app-server
-          else
-            echo "IPA 파일이 없습니다. 코드 서명이 필요합니다."
-          fi
+  #     - name: Deploy to Firebase App Distribution
+  #       continue-on-error: true
+  #       env:
+  #         FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+  #       run: |
+  #         IPA_FILE=$(find build/ios/ipa -name "*.ipa" 2>/dev/null | head -1)
+          
+  #         if [ -n "$IPA_FILE" ] && [ -f "$IPA_FILE" ]; then
+  #           echo "=== IPA 파일 발견: $IPA_FILE ==="
+            
+  #           # 코드 서명 여부 확인
+  #           if [ -z "${{ secrets.APPLE_CERTIFICATE_BASE64 }}" ]; then
+  #             echo "⚠️ 경고: 코드 서명 없이 빌드된 IPA입니다."
+  #             echo "⚠️ 이 IPA는 실제 기기에 설치할 수 없습니다."
+  #             echo "⚠️ Firebase App Distribution에 배포하더라도 테스터가 설치할 수 없습니다."
+  #             echo ""
+  #             echo "❌ 배포를 건너뜁니다. Apple Developer Program 가입 후 코드 서명을 설정하세요."
+  #             exit 1
+  #           fi
+            
+  #           firebase appdistribution:distribute "$IPA_FILE" \
+  #             --app 1:629900837240:ios:f7b50a73a0bf441f24c88d \
+  #             --groups "testers" \
+  #             --project memory-app-server
+  #           echo "✅ iOS 앱이 Firebase App Distribution에 배포되었습니다"
+  #         else
+  #           echo "❌ IPA 파일을 찾을 수 없습니다."
+  #           echo "빌드 디렉토리 확인:"
+  #           ls -la build/ios/ipa/ 2>/dev/null || echo "build/ios/ipa/ 디렉토리가 없습니다"
+  #           echo ""
+  #           echo "💡 iOS 앱을 배포하려면:"
+  #           echo "1. Apple Developer Program 가입 ($99/년) 필요"
+  #           echo "2. 코드 서명 설정 필요"
+  #           echo "📝 자세한 내용: docs/IOS_CODE_SIGNING_SETUP.md"
+  #           exit 1
+  #         fi
