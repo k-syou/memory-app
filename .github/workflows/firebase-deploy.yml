@@ -64,10 +64,10 @@ jobs:
         run: |
           flutter build ipa --release --no-codesign || echo "iOS 빌드 실패: 코드 서명이 필요합니다"
 
-  # Merge 후 또는 develop 브랜치에 직접 push 시 배포 실행
+  # develop 브랜치에 push 시 배포 실행 (PR 머지 포함)
   deploy-firestore:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true || (github.event_name == 'push' && github.ref == 'refs/heads/develop')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
 
     steps:
       - name: Checkout code
@@ -89,7 +89,7 @@ jobs:
 
   deploy-android:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true || (github.event_name == 'push' && github.ref == 'refs/heads/develop')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
 
     steps:
       - name: Checkout code
@@ -109,6 +109,11 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Get SHA-1 fingerprint (for Firebase)
+        run: |
+          cd android
+          ./gradlew signingReport 2>&1 | grep -A 2 "SHA1:" | head -5 || echo "SHA-1 지문 확인 실패 (정상: debug keystore가 새로 생성됨)"
 
       - name: Build Android APK
         run: flutter build apk --release
@@ -132,7 +137,7 @@ jobs:
 
   deploy-ios:
     runs-on: macos-latest
-    if: github.event.pull_request.merged == true || (github.event_name == 'push' && github.ref == 'refs/heads/develop')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
 
     steps:
       - name: Checkout code
