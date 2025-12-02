@@ -13,7 +13,7 @@
 migrate_working_dir/
 .vscode/
 .cursor/
-
+ 
 # IntelliJ related
 *.iml
 *.ipr
